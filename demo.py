@@ -49,13 +49,18 @@ if __name__ == '__main__':
     # snapshot_path = args.snapshot
 
     gaze_pipeline = Pipeline(
-        weights=CWD / 'models' / 'L2CSNet_gaze360.pkl',
+        weights=CWD / 'models' / 'L2CSNet' / 'Gaze360' / 'L2CSNet_gaze360.pkl',
         arch='ResNet50',
         device = select_device(args.device, batch_size=1)
     )
      
     cap = cv2.VideoCapture(cam)
-
+    # 解析度設定（例如寬 640, 高 480）
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    print(f"Camera resolution set to: {int(width)}x{int(height)}")
     # Check if the webcam is opened correctly
     if not cap.isOpened():
         raise IOError("Cannot open webcam")
@@ -70,18 +75,39 @@ if __name__ == '__main__':
             if not success:
                 print("Failed to obtain frame")
                 time.sleep(0.1)
-
-            # Process frame
-            results = gaze_pipeline.step(frame)
+                continue
+            # === 新增：處理 IR 相機格式 ===
+            if frame is not None:
+                if frame.shape[-1] == 2:
+                    # YUYV 格式（YUV422 packed）
+                    frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_YUYV)
+                elif len(frame.shape) == 2 or frame.shape[2] == 1:
+                    # 單通道灰階
+                    frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            # # Process frame
+            # results = gaze_pipeline.step(frame)
+            # === 防止偵測失敗導致崩潰 ===
+            try:
+                results = gaze_pipeline.step(frame)
+            except Exception as e:
+                print("[Warning] Gaze pipeline failed on this frame:", e)
+                continue
 
             # Visualize output
             frame = render(frame, results)
-           
+            # print(frame)
+            print("Frame shape:", frame.shape)
             myFPS = 1.0 / (time.time() - start_fps)
             cv2.putText(frame, 'FPS: {:.1f}'.format(myFPS), (10, 20),cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
             cv2.imshow("Demo",frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-            success,frame = cap.read()  
-    
+            success,frame = cap.read()
+
+    #  python demo.py --snapshot models/L2CSNet_gaze360.pkl --devicce cpu --cam 0
+    # 480*640 11 FPS
+    # 1080*1920 7 FPS
+    # python demo.py --snapshot models/L2CSNet_gaze360.pkl --device mps --cam 0
+    # 480*640 20~22 FPS
+    # 1080*1920 10 FPS

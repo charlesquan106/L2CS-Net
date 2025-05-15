@@ -66,30 +66,60 @@ def angular(gaze, label):
     total = np.sum(gaze * label)
     return np.arccos(min(total/(np.linalg.norm(gaze)* np.linalg.norm(label)), 0.9999999))*180/np.pi
 
+# def select_device(device='', batch_size=None):
+#     # device = 'cpu' or '0' or '0,1,2,3'
+#     s = f'YOLOv3 🚀 {git_describe() or date_modified()} torch {torch.__version__} '  # string
+#     cpu = device.lower() == 'cpu'
+#     if cpu:
+#         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # force torch.cuda.is_available() = False
+#     elif device:  # non-cpu device requested
+#         os.environ['CUDA_VISIBLE_DEVICES'] = device  # set environment variable
+#         # assert torch.cuda.is_available(), f'CUDA unavailable, invalid device {device} requested'  # check availability
+
+#     cuda = not cpu and torch.cuda.is_available()
+#     if cuda:
+#         devices = device.split(',') if device else range(torch.cuda.device_count())  # i.e. 0,1,6,7
+#         n = len(devices)  # device count
+#         if n > 1 and batch_size:  # check batch_size is divisible by device_count
+#             assert batch_size % n == 0, f'batch-size {batch_size} not multiple of GPU count {n}'
+#         space = ' ' * len(s)
+#         for i, d in enumerate(devices):
+#             p = torch.cuda.get_device_properties(i)
+#             s += f"{'' if i == 0 else space}CUDA:{d} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
+#     else:
+#         s += 'CPU\n'
+
+#     return torch.device('cuda:0' if cuda else 'cpu')
 def select_device(device='', batch_size=None):
-    # device = 'cpu' or '0' or '0,1,2,3'
-    s = f'YOLOv3 🚀 {git_describe() or date_modified()} torch {torch.__version__} '  # string
-    cpu = device.lower() == 'cpu'
-    if cpu:
-        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # force torch.cuda.is_available() = False
-    elif device:  # non-cpu device requested
-        os.environ['CUDA_VISIBLE_DEVICES'] = device  # set environment variable
-        # assert torch.cuda.is_available(), f'CUDA unavailable, invalid device {device} requested'  # check availability
+    s = f'L2CS-Net 🚀 torch {torch.__version__} '  # log string
+    device = device.lower()
 
-    cuda = not cpu and torch.cuda.is_available()
-    if cuda:
-        devices = device.split(',') if device else range(torch.cuda.device_count())  # i.e. 0,1,6,7
-        n = len(devices)  # device count
-        if n > 1 and batch_size:  # check batch_size is divisible by device_count
-            assert batch_size % n == 0, f'batch-size {batch_size} not multiple of GPU count {n}'
-        space = ' ' * len(s)
-        for i, d in enumerate(devices):
-            p = torch.cuda.get_device_properties(i)
-            s += f"{'' if i == 0 else space}CUDA:{d} ({p.name}, {p.total_memory / 1024 ** 2}MB)\n"  # bytes to MB
-    else:
-        s += 'CPU\n'
+    if device == 'cpu':
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+        print(s + 'Using CPU')
+        return torch.device('cpu')
 
-    return torch.device('cuda:0' if cuda else 'cpu')
+    elif device == 'mps':
+        if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            print(s + 'Using Apple Metal (MPS)')
+            return torch.device('mps')
+        else:
+            print(s + 'MPS requested but not available. Falling back to CPU.')
+            return torch.device('cpu')
+
+    elif 'cuda' in device or device.isdigit():
+        if torch.cuda.is_available():
+            os.environ['CUDA_VISIBLE_DEVICES'] = device
+            print(s + f'Using CUDA:{device}')
+            return torch.device(f'cuda:{device}')
+        else:
+            print(s + 'CUDA requested but not available. Falling back to CPU.')
+            return torch.device('cpu')
+
+    # Default fallback
+    print(s + 'Using CPU')
+    return torch.device('cpu')
+
 
 def spherical2cartesial(x):
     
